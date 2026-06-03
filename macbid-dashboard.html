@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>mac.bid scanner</title>
+<style>
+  :root {
+    --bg: #14110f;
+    --panel: #1f1a16;
+    --panel-2: #2a2320;
+    --line: #3a322c;
+    --ink: #f2ece3;
+    --ink-dim: #a89b8c;
+    --accent: #e8743b;      /* burnt orange */
+    --accent-2: #6fae8f;    /* muted green for "good" signals */
+    --warn: #d8a13a;
+    --hot: #e05a4d;
+    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --font-body: ui-rounded, "SF Pro Rounded", -apple-system, "Segoe UI", Helvetica, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); }
+  body {
+    background-image:
+      radial-gradient(circle at 12% -10%, rgba(232,116,59,0.10), transparent 40%),
+      radial-gradient(circle at 90% 0%, rgba(111,174,143,0.06), transparent 35%);
+    min-height: 100vh;
+  }
+  header {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(20,17,15,0.94);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px 8px;
+  }
+  .titlebar { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  h1 {
+    font-family: var(--font-display); font-weight: 600; font-style: italic;
+    font-size: 1.35rem; margin: 0; letter-spacing: 0.2px;
+    color: var(--ink);
+  }
+  h1 .dot { color: var(--accent); font-style: normal; }
+  .meta { font-size: 0.7rem; color: var(--ink-dim); font-family: var(--font-mono); text-align: right; line-height: 1.3; }
+
+  .controls { margin-top: 9px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-dim); margin-right: 2px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 11px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink-dim); font-size: 0.82rem; cursor: pointer;
+    user-select: none; transition: all .12s ease;
+  }
+  .chip input { display: none; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #1a1109; font-weight: 600; }
+  .chip.loc.on { background: var(--accent); }
+  .chip .ct { font-size: 0.68rem; opacity: 0.7; font-family: var(--font-mono); }
+  .chip.on .ct { opacity: 0.85; }
+
+  input.search {
+    flex: 1 1 160px; min-width: 120px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 8px 10px; font-size: 0.9rem; font-family: var(--font-body);
+  }
+  input.search::placeholder { color: var(--ink-dim); }
+  .num {
+    width: 74px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 7px 8px; font-size: 0.82rem; font-family: var(--font-mono);
+  }
+  button.act {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 8px 13px; font-size: 0.82rem; cursor: pointer; font-family: var(--font-body);
+  }
+  button.act:active { background: var(--accent); color: #1a1109; }
+  button.go { background: var(--accent); color: #1a1109; border-color: var(--accent); font-weight: 600; }
+
+  .coltoggles { font-size: 0.72rem; color: var(--ink-dim); }
+  .coltoggles label { margin-right: 9px; white-space: nowrap; cursor: pointer; }
+  .coltoggles input { vertical-align: -1px; margin-right: 3px; accent-color: var(--accent); }
+
+  .wrap { padding: 6px 0 80px; }
+  .status { padding: 14px 16px; color: var(--ink-dim); font-size: 0.85rem; font-family: var(--font-mono); }
+  .status.err { color: var(--hot); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  thead th {
+    position: sticky; top: 0;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 8px; text-align: left; white-space: nowrap;
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-dim); cursor: pointer; user-select: none;
+  }
+  thead th.sortable:hover { color: var(--ink); }
+  thead th .arr { color: var(--accent); font-size: 0.7rem; }
+  thead th.num, tbody td.num { text-align: right; font-family: var(--font-mono); }
+  tbody tr { border-bottom: 1px solid rgba(58,50,44,0.5); }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,0.014); }
+  tbody td { padding: 8px 8px; vertical-align: top; }
+  td.title a { color: var(--ink); text-decoration: none; font-weight: 500; }
+  td.title a:hover { color: var(--accent); text-decoration: underline; }
+  td.title .sub { display: block; color: var(--ink-dim); font-size: 0.7rem; margin-top: 2px; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-family: var(--font-mono); }
+  .pill.loc { background: rgba(232,116,59,0.16); color: var(--accent); }
+  .cond { font-size: 0.72rem; color: var(--ink-dim); }
+  .cd { font-family: var(--font-mono); font-size: 0.8rem; }
+  .cd.soon { color: var(--hot); font-weight: 600; }
+  .cd.mid { color: var(--warn); }
+  .price { font-family: var(--font-mono); }
+  .bid0 { color: var(--accent-2); }
+  .muted { color: var(--ink-dim); }
+  .thumb { width: 34px; height: 34px; border-radius: 5px; object-fit: cover; background: var(--panel-2); display: block; }
+
+  /* hidden-by-default optional columns */
+  .opt { display: none; }
+  body.show-iw .opt-iw { display: table-cell; }
+  body.show-score .opt-score { display: table-cell; }
+  body.show-thumb .opt-thumb { display: table-cell; }
+
+  @media (max-width: 560px) {
+    td.title .sub.upc { display: none; }
+    thead th, tbody td { padding: 7px 6px; }
+  }
+</style>
+</head>
+<body class="show-thumb">
+<header>
+  <div class="titlebar">
+    <h1>mac<span class="dot">.</span>bid scanner</h1>
+    <div class="meta" id="meta">—</div>
+  </div>
+
+  <div class="controls">
+    <div class="row" id="locRow">
+      <span class="label">Location</span>
+      <!-- location chips injected -->
+    </div>
+
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="search products, brand, title…" enterkeyhint="search">
+      <button class="act go" id="refresh">Refresh</button>
+    </div>
+
+    <div class="row">
+      <span class="label">Bid $</span>
+      <input class="num" id="bidMin" type="number" inputmode="decimal" placeholder="min">
+      <input class="num" id="bidMax" type="number" inputmode="decimal" placeholder="max">
+      <span class="label" style="margin-left:6px">Retail $</span>
+      <input class="num" id="retMin" type="number" inputmode="decimal" placeholder="min">
+      <input class="num" id="retMax" type="number" inputmode="decimal" placeholder="max">
+      <label class="chip" id="openChip" style="margin-left:auto"><input type="checkbox" id="openOnly" checked>Open only</label>
+      <label class="chip" id="palletChip"><input type="checkbox" id="noPallet" checked>No pallets</label>
+    </div>
+
+    <div class="row coltoggles">
+      <span class="label">Columns</span>
+      <label><input type="checkbox" id="cThumb" checked>image</label>
+      <label><input type="checkbox" id="cIw">instant-win</label>
+      <label><input type="checkbox" id="cScore">smart score</label>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="status" id="status">Ready. Hit Refresh to load lots.</div>
+  <table id="tbl" hidden>
+    <thead>
+      <tr id="headRow"></tr>
+    </thead>
+    <tbody id="body"></tbody>
+  </table>
+</div>
+
+<script>
+const ENDPOINT = "https://xczkhpt94lod37gqp.a1.typesense.net/multi_search?x-typesense-api-key=jxX8RU6YVOkm9esgd9buaYjulIWv6N52";
+const COLLECTION = "prod_macdiscount_alias";
+const LOCATIONS = ["Washington", "Uniontown", "Bridgeport"];
+const DEFAULT_LOCS = ["Washington"];
+const MAX_PAGES = 6;        // up to 6 * 250 = 1500 lots
+const PER_PAGE = 250;
+
+let rows = [];              // current dataset
+let sortKey = "secsLeft";
+let sortDir = 1;            // 1 asc, -1 desc
+let tick = null;
+
+// ---- column definitions (order matters) ----
+const COLS = [
+  { key: "_thumb",   label: "",        cls: "opt opt-thumb", sortable: false },
+  { key: "title",    label: "Item",    cls: "title",         sortable: true  },
+  { key: "location", label: "Loc",     cls: "",              sortable: true  },
+  { key: "secsLeft", label: "Closes",  cls: "num",           sortable: true  },
+  { key: "current_bid", label: "Bid",  cls: "num",           sortable: true  },
+  { key: "retail_price", label: "Retail", cls: "num",        sortable: true  },
+  { key: "total_bids", label: "Bids",  cls: "num",           sortable: true  },
+  { key: "unique_bidders", label: "Bidders", cls: "num",     sortable: true  },
+  { key: "box_size", label: "Box",     cls: "",              sortable: true  },
+  { key: "condition", label: "Cond",   cls: "",              sortable: true  },
+  { key: "instant_win_price", label: "InstWin", cls: "num opt opt-iw", sortable: true },
+  { key: "smart_score", label: "Score", cls: "num opt opt-score", sortable: true },
+];
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+
+function selectedLocs() {
+  return [...document.querySelectorAll(".chip.loc.on input")].map(i => i.value);
+}
+
+function buildLocChips() {
+  const row = $("locRow");
+  LOCATIONS.forEach(loc => {
+    const on = DEFAULT_LOCS.includes(loc);
+    const lab = document.createElement("label");
+    lab.className = "chip loc" + (on ? " on" : "");
+    lab.innerHTML = `<input type="checkbox" value="${loc}" ${on ? "checked" : ""}>${loc} <span class="ct" data-loc="${loc}"></span>`;
+    const cb = lab.querySelector("input");
+    cb.addEventListener("change", () => {
+      lab.classList.toggle("on", cb.checked);
+      load();
+    });
+    row.appendChild(lab);
+  });
+}
+
+function fmtMoney(n) {
+  if (n == null) return "";
+  return "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function closeTs(doc) {
+  // expected_closing_utc is seconds; fall back to expected_close_date
+  if (doc.expected_closing_utc) return doc.expected_closing_utc * 1000;
+  if (doc.expected_close_date) return new Date(doc.expected_close_date + "T00:00:00Z").getTime();
+  return null;
+}
+
+function fmtCountdown(secs) {
+  if (secs == null) return { txt: "—", cls: "" };
+  if (secs <= 0) return { txt: "closed", cls: "soon" };
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  let txt, cls = "";
+  if (d > 0) txt = `${d}d ${h}h`;
+  else if (h > 0) txt = `${h}h ${m}m`;
+  else { txt = `${m}m ${String(s).padStart(2,"0")}s`; cls = "soon"; }
+  if (!cls && d === 0 && h < 6) cls = "mid";
+  return { txt, cls };
+}
+
+// ---------- fetch ----------
+function buildFilter() {
+  const parts = [];
+  const locs = selectedLocs();
+  if (locs.length) {
+    parts.push("auction_location:=[" + locs.map(l => "`" + l + "`").join(",") + "]");
+  } else {
+    // no location selected -> deliberately match nothing, avoid dumping all warehouses
+    parts.push("auction_location:=[`__none__`]");
+  }
+  if ($("openOnly").checked) parts.push("is_open:=[1]");
+  if ($("noPallet").checked) parts.push("is_pallet:=[false]");
+
+  const bMin = $("bidMin").value, bMax = $("bidMax").value;
+  if (bMin !== "" || bMax !== "") {
+    parts.push(`current_bid:=[${bMin === "" ? 0 : bMin}..${bMax === "" ? 999999 : bMax}]`);
+  }
+  const rMin = $("retMin").value, rMax = $("retMax").value;
+  if (rMin !== "" || rMax !== "") {
+    parts.push(`retail_price:=[${rMin === "" ? 0 : rMin}..${rMax === "" ? 999999 : rMax}]`);
+  }
+  return parts.join(" && ");
+}
+
+async function fetchPage(page, q, filter) {
+  const search = {
+    collection: COLLECTION,
+    q: q || "*",
+    query_by: "product_name,description,keywords,upc,inventory_id,auction_title",
+    exclude_fields: "description,keywords,bid_delta,embedding",
+    num_typos: "1,0,0,0,0,0",
+    sort_by: "expected_close_date:asc,ranking_weight:desc",
+    filter_by: filter,
+    per_page: PER_PAGE,
+    page: page,
+    use_cache: true,
+    search_cutoff_ms: 10000
+  };
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body: JSON.stringify({ searches: [search] })
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  const r = data.results && data.results[0];
+  if (!r) throw new Error("no results block");
+  if (r.error) throw new Error(r.error);
+  return r;
+}
+
+async function load() {
+  const q = $("q").value.trim();
+  const filter = buildFilter();
+  setStatus("Loading…");
+  $("tbl").hidden = true;
+  try {
+    let all = [], found = 0, pages = 1;
+    const first = await fetchPage(1, q, filter);
+    found = first.found ?? 0;
+    pages = Math.min(MAX_PAGES, Math.max(1, Math.ceil(found / PER_PAGE)));
+    all = all.concat(first.hits || []);
+    for (let p = 2; p <= pages; p++) {
+      const r = await fetchPage(p, q, filter);
+      all = all.concat(r.hits || []);
+    }
+    rows = all.map(h => {
+      const d = h.document || {};
+      return {
+        ...d,
+        title: d.auction_title || d.product_name || "(untitled)",
+        location: d.auction_location || "",
+        _closeMs: closeTs(d),
+        link: `https://www.mac.bid/dollar-items?aid=${d.auction_id}&lid=${d.lot_number}`
+      };
+    });
+    const shown = Math.min(found, all.length);
+    setStatus("");
+    $("meta").textContent = `${shown.toLocaleString()} of ${found.toLocaleString()} lots\n${new Date().toLocaleTimeString()}`;
+    render();
+  } catch (e) {
+    let msg = "Load failed: " + e.message;
+    if (e instanceof TypeError) {
+      msg += "  — likely a CORS block. If this only happens from a local file, try the hosted (GitHub Pages) URL instead.";
+    }
+    setStatus(msg, true);
+  }
+}
+
+function setStatus(msg, isErr) {
+  const s = $("status");
+  if (!msg) { s.hidden = true; return; }
+  s.hidden = false; s.textContent = msg;
+  s.className = "status" + (isErr ? " err" : "");
+}
+
+// ---------- render ----------
+function buildHead() {
+  const tr = $("headRow");
+  tr.innerHTML = "";
+  COLS.forEach(c => {
+    const th = document.createElement("th");
+    th.className = c.cls + (c.sortable ? " sortable" : "");
+    th.dataset.key = c.key;
+    th.innerHTML = c.label + (c.sortable ? ` <span class="arr" data-arr="${c.key}"></span>` : "");
+    if (c.sortable) th.addEventListener("click", () => setSort(c.key));
+    tr.appendChild(th);
+  });
+}
+
+function setSort(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = (key === "title" || key === "location" || key === "condition" || key === "box_size") ? 1 : 1; }
+  render();
+}
+
+function sortVal(r, key) {
+  if (key === "secsLeft") return r._closeMs == null ? Infinity : r._closeMs;
+  const v = r[key];
+  if (typeof v === "string") return v.toLowerCase();
+  return v == null ? -Infinity : v;
+}
+
+function render() {
+  if (!rows.length) { setStatus("No lots match these filters."); $("tbl").hidden = true; return; }
+  const sorted = [...rows].sort((a, b) => {
+    const av = sortVal(a, sortKey), bv = sortVal(b, sortKey);
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+
+  // header arrows
+  document.querySelectorAll("[data-arr]").forEach(s => s.textContent = "");
+  const arr = document.querySelector(`[data-arr="${sortKey}"]`);
+  if (arr) arr.textContent = sortDir === 1 ? "▲" : "▼";
+
+  const now = Date.now();
+  const body = $("body");
+  body.innerHTML = "";
+  const frag = document.createDocumentFragment();
+
+  sorted.forEach(r => {
+    const tr = document.createElement("tr");
+    const secs = r._closeMs == null ? null : (r._closeMs - now) / 1000;
+
+    const cells = {
+      _thumb: r.image_url
+        ? `<img class="thumb" loading="lazy" src="${r.image_url}" alt="">`
+        : `<span class="thumb"></span>`,
+      title: `<a href="${r.link}" target="_blank" rel="noopener">${esc(r.title)}</a>` +
+             (r.brand ? `<span class="sub">${esc(r.brand)}</span>` : "") +
+             (r.upc ? `<span class="sub upc muted">${esc(r.upc)}</span>` : ""),
+      location: `<span class="pill loc">${esc(r.location)}</span>`,
+      secsLeft: `<span class="cd" data-close="${r._closeMs ?? ""}">…</span>`,
+      current_bid: `<span class="price ${r.current_bid === 0 ? "bid0" : ""}">${fmtMoney(r.current_bid)}</span>`,
+      retail_price: `<span class="price muted">${fmtMoney(r.retail_price)}</span>`,
+      total_bids: r.total_bids ?? 0,
+      unique_bidders: r.unique_bidders ?? 0,
+      box_size: `<span class="cond">${esc(r.box_size || "")}</span>`,
+      condition: `<span class="cond">${esc(r.condition || "")}</span>`,
+      instant_win_price: r.instant_win_price ? fmtMoney(r.instant_win_price) : `<span class="muted">—</span>`,
+      smart_score: r.smart_score != null ? Number(r.smart_score).toFixed(1) : ""
+    };
+
+    COLS.forEach(c => {
+      const td = document.createElement("td");
+      td.className = c.cls;
+      td.innerHTML = cells[c.key];
+      tr.appendChild(td);
+    });
+    frag.appendChild(tr);
+  });
+  body.appendChild(frag);
+  $("tbl").hidden = false;
+  setStatus("");
+  updateCountdowns();
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+}
+
+function updateCountdowns() {
+  const now = Date.now();
+  document.querySelectorAll("[data-close]").forEach(el => {
+    const ms = el.getAttribute("data-close");
+    if (ms === "") { el.textContent = "—"; return; }
+    const secs = (Number(ms) - now) / 1000;
+    const { txt, cls } = fmtCountdown(secs);
+    el.textContent = txt;
+    el.className = "cd " + cls;
+  });
+}
+
+// ---------- wiring ----------
+function initColToggle(cb, cls) {
+  const apply = () => document.body.classList.toggle(cls, cb.checked);
+  cb.addEventListener("change", apply); apply();
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  buildLocChips();
+  buildHead();
+  initColToggle($("cThumb"), "show-thumb");
+  initColToggle($("cIw"), "show-iw");
+  initColToggle($("cScore"), "show-score");
+
+  $("refresh").addEventListener("click", load);
+  $("q").addEventListener("keydown", e => { if (e.key === "Enter") load(); });
+  [$("openOnly"), $("noPallet")].forEach(c => c.addEventListener("change", load));
+  // re-filter (client side would need refetch for ranges) -> refetch on blur of range inputs
+  ["bidMin","bidMax","retMin","retMax"].forEach(id =>
+    $(id).addEventListener("change", load));
+
+  tick = setInterval(updateCountdowns, 1000);
+  load();
+});
+</script>
+</body>
+</html>
