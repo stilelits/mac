@@ -122,6 +122,11 @@
   body.show-iw .opt-iw { display: table-cell; }
   body.show-score .opt-score { display: table-cell; }
   body.show-thumb .opt-thumb { display: table-cell; }
+  body.show-brand .opt-brand { display: table-cell; }
+  body.show-cat .opt-cat { display: table-cell; }
+  body.show-box .opt-box { display: table-cell; }
+  body.show-cond .opt-cond { display: table-cell; }
+  body.show-disc .opt-disc { display: table-cell; }
 
   @media (max-width: 560px) {
     td.title .sub.upc { display: none; }
@@ -129,7 +134,7 @@
   }
 </style>
 </head>
-<body class="show-thumb">
+<body class="show-thumb show-box show-cond">
 <header>
   <div class="titlebar">
     <h1>mac<span class="dot">.</span>bid scanner</h1>
@@ -154,13 +159,24 @@
       <span class="label" style="margin-left:6px">Retail $</span>
       <input class="num" id="retMin" type="number" inputmode="decimal" placeholder="min">
       <input class="num" id="retMax" type="number" inputmode="decimal" placeholder="max">
-      <label class="chip" id="openChip" style="margin-left:auto"><input type="checkbox" id="openOnly" checked>Open only</label>
+      <span class="label" style="margin-left:6px">Mins left</span>
+      <input class="num" id="minMin" type="number" inputmode="numeric" placeholder="min">
+      <input class="num" id="minMax" type="number" inputmode="numeric" placeholder="max">
+    </div>
+
+    <div class="row">
+      <label class="chip" id="openChip"><input type="checkbox" id="openOnly" checked>Open only</label>
       <label class="chip" id="palletChip"><input type="checkbox" id="noPallet" checked>No pallets</label>
     </div>
 
     <div class="row coltoggles">
       <span class="label">Columns</span>
       <label><input type="checkbox" id="cThumb" checked>image</label>
+      <label><input type="checkbox" id="cBox" checked>box</label>
+      <label><input type="checkbox" id="cCond" checked>condition</label>
+      <label><input type="checkbox" id="cBrand">brand</label>
+      <label><input type="checkbox" id="cCat">category</label>
+      <label><input type="checkbox" id="cDisc">discount %</label>
       <label><input type="checkbox" id="cIw">instant-win</label>
       <label><input type="checkbox" id="cScore">smart score</label>
     </div>
@@ -200,8 +216,11 @@ const COLS = [
   { key: "retail_price", label: "Retail", cls: "num",        sortable: true  },
   { key: "total_bids", label: "Bids",  cls: "num",           sortable: true  },
   { key: "unique_bidders", label: "Bidders", cls: "num",     sortable: true  },
-  { key: "box_size", label: "Box",     cls: "",              sortable: true  },
-  { key: "condition", label: "Cond",   cls: "",              sortable: true  },
+  { key: "brand",    label: "Brand",   cls: "opt opt-brand", sortable: true  },
+  { key: "category", label: "Category", cls: "opt opt-cat",  sortable: true  },
+  { key: "box_size", label: "Box",     cls: "opt opt-box",   sortable: true  },
+  { key: "condition", label: "Cond",   cls: "opt opt-cond",  sortable: true  },
+  { key: "discount_percentage", label: "Disc%", cls: "num opt opt-disc", sortable: true },
   { key: "instant_win_price", label: "InstWin", cls: "num opt opt-iw", sortable: true },
   { key: "smart_score", label: "Score", cls: "num opt opt-score", sortable: true },
 ];
@@ -461,6 +480,11 @@ window.addEventListener("DOMContentLoaded", () => {
   buildLocChips();
   buildHead();
   initColToggle($("cThumb"), "show-thumb");
+  initColToggle($("cBox"), "show-box");
+  initColToggle($("cCond"), "show-cond");
+  initColToggle($("cBrand"), "show-brand");
+  initColToggle($("cCat"), "show-cat");
+  initColToggle($("cDisc"), "show-disc");
   initColToggle($("cIw"), "show-iw");
   initColToggle($("cScore"), "show-score");
 
